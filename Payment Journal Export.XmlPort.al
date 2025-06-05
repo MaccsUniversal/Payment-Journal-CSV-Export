@@ -126,7 +126,7 @@ xmlport 99001 "Payment Journal Export MOO"
                     begin
                         BankSortCode := GetBankDetails('BankSortCode');
                         if StrLen(BankSortCode) <> 6 then
-                            Error('Bank Sort Code Should be 6 Digits Long For UK Suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
+                            Error('Bank Sort Code should be 6 digits long for UK suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
                     end;
                 }
 
@@ -136,7 +136,7 @@ xmlport 99001 "Payment Journal Export MOO"
                     begin
                         BankAccountNo := GetBankDetails('BankAccountNo');
                         if StrLen(BankAccountNo) <> 8 then
-                            Error('Bank Account No. Should be 8 Digits Long For UK Suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3,', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
+                            Error('Bank Account No. should be 8 digits long for UK suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3,', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
                     end;
                 }
 
@@ -158,6 +158,7 @@ xmlport 99001 "Payment Journal Export MOO"
     var
         DateFormat: Text;
     begin
+        IsAccountNoBlank();
         DateFormat := '<Year4><Month,2><Day,2>';
         Header := 'H';
         UploadDate := Format(Today(), 8, DateFormat);
@@ -175,7 +176,7 @@ xmlport 99001 "Payment Journal Export MOO"
         VendorBankAcc.SetFilter("Vendor No.", GenJournalLine."Account No.");
         VendorBankAcc.SetCurrentKey("Vendor No.");
         if not VendorBankAcc.FindSet() then
-            error('Cannot to find Vendor Account No. for General Journal Line=%1 General Journal Line Batch Name=%2', GenJournalLine."Line No.", GenJournalLine."Journal Batch Name");
+            error('Cannot find Vendor Account No for Recipient Bank Account. General Journal Line=%1 General Journal Line Batch Name=%2', GenJournalLine."Line No.", GenJournalLine."Journal Batch Name");
         VendorBankAcc.TestField(Code, GenJournalLine."Account No.");
         case AccountDetail of
             'BankAccountNo':
@@ -193,5 +194,31 @@ xmlport 99001 "Payment Journal Export MOO"
         GenJnlLines.FindFirst();
         exit(GenJnlLines."Posting Date");
     end;
+
+    local procedure IsAccountNoBlank()
+    var
+        GenJnlLine: Record "Gen. Journal Line";
+        ExportErrorInfo: ErrorInfo;
+        Count: Integer;
+    begin
+        GenJnlLine.SetFilter("Journal Template Name", 'PAYMENTS');
+        case GenJnlLine.FindSet() of
+            true:
+                repeat
+                    if GenJnlLine."Account No." = '' then begin
+                        ExportErrorInfo.Title('Export CSV');
+                        ExportErrorInfo.Message('One or more lines does not have an Account No.');
+                        Error(ExportErrorInfo);
+                    end;
+                until GenJnlLine.Next() <= 0;
+            false:
+                if (GenJnlLine.Count <= 1) and (GenJnlLine."Account No." = '') then begin
+                    ExportErrorInfo.Title('Export CSV');
+                    ExportErrorInfo.Message('Nothing to export');
+                    Error(ExportErrorInfo);
+                end;
+        end;
+    end;
+
 }
 
