@@ -55,13 +55,9 @@ xmlport 99001 "Payment Journal Export MOO"
 
                 textelement(Header) { }
 
-                textelement(UploadDate) { }
+                textelement(CurrentDate) { }
 
-                textelement(PageNumber) { }
-
-                textelement(BlankField) { }
-
-                textelement(BlankField2) { }
+                textelement(SequenceNumber) { }
 
             }
             tableelement(BankCard; "Bank Account")
@@ -79,15 +75,15 @@ xmlport 99001 "Payment Journal Export MOO"
 
                 textelement(ValueDate) { }
 
-                textelement(Uploader)
+                textelement(DebitAccountReference)
                 {
                     trigger OnBeforePassVariable()
                     begin
-                        Uploader := Format('Suppliers');
+                        DebitAccountReference := Format('Suppliers');
                     end;
                 }
 
-                textelement(BankDetails)
+                textelement(DebitAccountNumber)
                 {
 
                     trigger OnBeforePassVariable()
@@ -97,11 +93,11 @@ xmlport 99001 "Payment Journal Export MOO"
                     begin
                         AccountNo := Format(BankCard."Bank Account No.");
                         SortCode := Format(BankCard."Bank Branch No.");
-                        BankDetails := Format(SortCode + '-' + AccountNo);
+                        DebitAccountNumber := Format(SortCode + '-' + AccountNo);
                     end;
                 }
 
-                textelement(BlankField3) { }
+                textelement(BlankField4) { }
 
             }
             tableelement("GenJournalLine"; "Gen. Journal Line")
@@ -111,43 +107,43 @@ xmlport 99001 "Payment Journal Export MOO"
                 XmlName = 'Lines';
                 textelement(Creditor) { }
 
-                textelement(LineAmount)
+                textelement(PaymentAmount)
                 {
                     trigger OnBeforePassVariable()
                     begin
-                        LineAmount := Format(GenJournalLine.Amount, 8, 2);
+                        PaymentAmount := Format(GenJournalLine.Amount, 8, 2);
                         if GenJournalLine.Amount <= 0 then
                             Error('Payment amount must be greater that ''0.00''. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
                     end;
 
                 }
 
-                textelement(AccountHolderName)
+                textelement(BeneficiaryName)
                 {
                     trigger OnBeforePassVariable()
                     begin
-                        AccountHolderName := Format(GenJournalLine.Description, 14)
+                        BeneficiaryName := Format(GenJournalLine.Description, 14)
                     end;
                 }
 
-                textelement(BankAccountNo)
+                textelement(BeneficiaryAccountNo)
                 {
                     trigger OnBeforePassVariable()
                     begin
-                        BankAccountNo := GetBankDetails('BankAccountNo');
-                        if StrLen(BankAccountNo) <> 8 then
+                        BeneficiaryAccountNo := GetBankDetails('BeneficiaryAccountNo');
+                        if StrLen(BeneficiaryAccountNo) <> 8 then
                             Error('Bank Account No. should be 8 digits long for UK suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3,', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
                     end;
                 }
 
-                textelement(BankSortCode)
+                textelement(BeneficiarySortCode)
                 {
                     trigger OnBeforePassVariable()
                     var
                         VendorBankAcc: Record "Vendor Bank Account";
                     begin
-                        BankSortCode := GetBankDetails('BankSortCode');
-                        if StrLen(BankSortCode) <> 6 then
+                        BeneficiarySortCode := GetBankDetails('BeneficiarySortCode');
+                        if StrLen(BeneficiarySortCode) <> 6 then
                             Error('Bank Sort Code should be 6 digits long for UK suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
                     end;
                 }
@@ -173,9 +169,9 @@ xmlport 99001 "Payment Journal Export MOO"
         IsAccountNoBlank();
         DateFormat := '<Year4><Month,2><Day,2>';
         Header := 'H';
-        UploadDate := Format(Today(), 8, DateFormat);
+        CurrentDate := Format(Today(), 8, DateFormat);
         ValueDate := Format(GetPostingDate(), 8, DateFormat);
-        PageNumber := '1';
+        SequenceNumber := '1';
         Creditor := 'C';
         CompanyName := 'Sovereign Part';
         TerminateProcess := 'T';
@@ -191,9 +187,9 @@ xmlport 99001 "Payment Journal Export MOO"
             error('Cannot find Vendor Account No for Recipient Bank Account. General Journal Line=%1 General Journal Line Batch Name=%2', GenJournalLine."Line No.", GenJournalLine."Journal Batch Name");
         VendorBankAcc.TestField(Code, GenJournalLine."Account No.");
         case AccountDetail of
-            'BankAccountNo':
+            'BeneficiaryAccountNo':
                 exit(Format(VendorBankAcc."Bank Account No."));
-            'BankSortCode':
+            'BeneficiarySortCode':
                 exit(Format(VendorBankAcc."Bank Branch No."));
         end;
         VendorBankAcc.Reset();
