@@ -37,7 +37,6 @@ xmlport 99001 "Payment Journal Export MOO"
     TextEncoding = UTF8;
     UseRequestPage = false;
     TableSeparator = '<NewLine>';
-    FieldDelimiter = '"';
     FieldSeparator = ',';
     FileName = 'Payment Export File.csv';
 
@@ -59,6 +58,10 @@ xmlport 99001 "Payment Journal Export MOO"
                 textelement(UploadDate) { }
 
                 textelement(PageNumber) { }
+
+                textelement(BlankField) { }
+
+                textelement(BlankField2) { }
 
             }
             tableelement(BankCard; "Bank Account")
@@ -98,6 +101,8 @@ xmlport 99001 "Payment Journal Export MOO"
                     end;
                 }
 
+                textelement(BlankField3) { }
+
             }
             tableelement("GenJournalLine"; "Gen. Journal Line")
             {
@@ -106,27 +111,22 @@ xmlport 99001 "Payment Journal Export MOO"
                 XmlName = 'Lines';
                 textelement(Creditor) { }
 
-                fieldelement(Amount; GenJournalLine.Amount)
+                textelement(LineAmount)
                 {
-                    trigger OnBeforePassField()
+                    trigger OnBeforePassVariable()
                     begin
+                        LineAmount := Format(GenJournalLine.Amount, 8, 2);
                         if GenJournalLine.Amount <= 0 then
                             Error('Payment amount must be greater that ''0.00''. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
                     end;
 
                 }
 
-                fieldelement(Name; GenJournalLine.Description) { }
-
-                textelement(BankSortCode)
+                textelement(AccountHolderName)
                 {
                     trigger OnBeforePassVariable()
-                    var
-                        VendorBankAcc: Record "Vendor Bank Account";
                     begin
-                        BankSortCode := GetBankDetails('BankSortCode');
-                        if StrLen(BankSortCode) <> 6 then
-                            Error('Bank Sort Code should be 6 digits long for UK suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
+                        AccountHolderName := Format(GenJournalLine.Description, 14)
                     end;
                 }
 
@@ -137,6 +137,18 @@ xmlport 99001 "Payment Journal Export MOO"
                         BankAccountNo := GetBankDetails('BankAccountNo');
                         if StrLen(BankAccountNo) <> 8 then
                             Error('Bank Account No. should be 8 digits long for UK suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3,', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
+                    end;
+                }
+
+                textelement(BankSortCode)
+                {
+                    trigger OnBeforePassVariable()
+                    var
+                        VendorBankAcc: Record "Vendor Bank Account";
+                    begin
+                        BankSortCode := GetBankDetails('BankSortCode');
+                        if StrLen(BankSortCode) <> 6 then
+                            Error('Bank Sort Code should be 6 digits long for UK suppliers. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
                     end;
                 }
 
@@ -165,7 +177,7 @@ xmlport 99001 "Payment Journal Export MOO"
         ValueDate := Format(GetPostingDate(), 8, DateFormat);
         PageNumber := '1';
         Creditor := 'C';
-        CompanyName := 'Sovereign Partners';
+        CompanyName := 'Sovereign Part';
         TerminateProcess := 'T';
     end;
 
@@ -191,7 +203,9 @@ xmlport 99001 "Payment Journal Export MOO"
     var
         GenJnlLines: Record "Gen. Journal Line";
     begin
-        GenJnlLines.FindFirst();
+        GenJnlLines.SetFilter("Journal Batch Name", 'PAYMENTS');
+        GenJnlLines.SetFilter("Journal Batch Name", 'DEFAULT');
+        GenJnlLines.FindLast();
         exit(GenJnlLines."Posting Date");
     end;
 
