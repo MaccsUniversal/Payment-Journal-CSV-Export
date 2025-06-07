@@ -199,6 +199,7 @@ xmlport 99001 "Payment Journal Export MOO"
     var
         GenJnlLines: Record "Gen. Journal Line";
     begin
+        GenJnlLines.Reset();
         GenJnlLines.SetFilter("Journal Batch Name", 'PAYMENTS');
         GenJnlLines.SetFilter("Journal Batch Name", 'DEFAULT');
         GenJnlLines.FindLast();
@@ -211,13 +212,14 @@ xmlport 99001 "Payment Journal Export MOO"
         ExportErrorInfo: ErrorInfo;
         Count: Integer;
     begin
+        GenJnlLine.Reset();
         GenJnlLine.SetFilter("Journal Template Name", 'PAYMENTS');
         case GenJnlLine.FindSet() of
             true:
                 repeat
                     if GenJnlLine."Account No." = '' then begin
                         ExportErrorInfo.Title('Export CSV');
-                        ExportErrorInfo.Message('One or more lines does not have an Account No.');
+                        ExportErrorInfo.Message('One or more lines do not have an Account No.');
                         Error(ExportErrorInfo);
                     end;
                 until GenJnlLine.Next() <= 0;
