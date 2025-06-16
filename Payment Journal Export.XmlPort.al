@@ -1,4 +1,3 @@
-
 pageextension 99011 "Payment Journal MO" extends "Payment Journal"
 {
     layout
@@ -21,7 +20,7 @@ pageextension 99011 "Payment Journal MO" extends "Payment Journal"
 
                 trigger OnAction()
                 begin
-                    Xmlport.Run(99001, false, false);
+                    Xmlport.Run(99001, true, false);
                 end;
             }
         }
@@ -35,12 +34,11 @@ xmlport 99001 "Payment Journal Export MOO"
     Format = VariableText;
     Direction = Export;
     TextEncoding = UTF8;
-    UseRequestPage = false;
+    UseRequestPage = true;
     TableSeparator = '<NewLine>';
     FieldSeparator = ',';
+    FieldDelimiter = '<None>';
     FileName = 'Payment Export File.csv';
-
-
 
     schema
     {
@@ -57,23 +55,39 @@ xmlport 99001 "Payment Journal Export MOO"
 
                 textelement(CurrentDate) { }
 
-                textelement(SequenceNumber) { }
+                textelement(SequenceNumber)
+                {
+                    trigger OnBeforePassVariable()
+                    var
+                        NoSeries: Codeunit "No. Series";
+                    begin
+                        SequenceNumber := NoSeries.GetNextNo('EXPSEQNO');
+                    end;
+                }
 
             }
-            tableelement(BankCard; "Bank Account")
+            tableelement(SupplierBankCard; "Bank Account")
             {
                 SourceTableView = where("No." = filter('LLOYDS BANK'));
                 XmlName = 'SenderBankDetails';
+
+
                 textelement(BankLineLabel)
                 {
                     trigger OnBeforePassVariable()
                     begin
-                        if BankCard."No." = 'LLOYDS BANK' then
+                        if SupplierBankCard."No." = 'LLOYDS BANK' then
                             BankLineLabel := Format('D');
                     end;
                 }
 
-                textelement(ValueDate) { }
+                textelement(ValueDate)
+                {
+                    trigger OnBeforePassVariable()
+                    begin
+                        ValueDate := Format(ValueDate2, 8, DateFormat);
+                    end;
+                }
 
                 textelement(DebitAccountReference)
                 {
@@ -91,8 +105,8 @@ xmlport 99001 "Payment Journal Export MOO"
                         AccountNo: Text;
                         SortCode: Text;
                     begin
-                        AccountNo := Format(BankCard."Bank Account No.");
-                        SortCode := Format(BankCard."Bank Branch No.");
+                        AccountNo := Format(SupplierBankCard."Bank Account No.");
+                        SortCode := Format(SupplierBankCard."Bank Branch No.");
                         DebitAccountNumber := Format(SortCode + '-' + AccountNo);
                     end;
                 }
@@ -110,10 +124,19 @@ xmlport 99001 "Payment Journal Export MOO"
                 textelement(PaymentAmount)
                 {
                     trigger OnBeforePassVariable()
+                    var
+                        AmountInText: Text;
                     begin
-                        PaymentAmount := Format(GenJournalLine.Amount, 8, 2);
-                        if GenJournalLine.Amount <= 0 then
+                        AmountInText := Format(GenJournalLine.Amount);
+                        PaymentAmount := Format(GenJournalLine.Amount, StrLen(AmountInText), 2);
+                        PaymentAmount := PaymentAmount.TrimStart(' ');
+                        if GenJournalLine.Amount <= 0 then begin
                             Error('Payment amount must be greater that ''0.00''. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
+                        end
+                        else if StrLen(AmountInText) > 18 then begin
+                            Error('Payment amount must not be longer that 18 digits. General Journal Batch Name=%1, General Journal Line=%2, Account No=%3.', GenJournalLine."Journal Batch Name", GenJournalLine."Line No.", GenJournalLine."Account No.");
+                        end;
+
                     end;
 
                 }
@@ -121,8 +144,11 @@ xmlport 99001 "Payment Journal Export MOO"
                 textelement(BeneficiaryName)
                 {
                     trigger OnBeforePassVariable()
+                    var
+                        BNameInText: Text;
                     begin
-                        BeneficiaryName := Format(GenJournalLine.Description, 14)
+                        BeneficiaryName := Format(GenJournalLine.Description, SetBeneficiaryNameLength(StrLen(GenJournalLine.Description)));
+                        BeneficiaryName := BeneficiaryName.TrimEnd(' ');
                     end;
                 }
 
@@ -148,7 +174,13 @@ xmlport 99001 "Payment Journal Export MOO"
                     end;
                 }
 
-                textelement(CompanyName) { }
+                textelement(BeneficiaryReference)
+                {
+                    trigger OnBeforePassVariable()
+                    begin
+                        BeneficiaryReference := Format(BeneficiaryReference2, 14);
+                    end;
+                }
             }
             tableelement(Terminate; Integer)
             {
@@ -162,18 +194,52 @@ xmlport 99001 "Payment Journal Export MOO"
 
     }
 
-    trigger OnInitXmlPort()
+
+    requestpage
+    {
+        Caption = 'Payment File Export';
+        ShowFilter = false;
+
+        layout
+        {
+
+            area(Content)
+            {
+                group("Export File Values")
+                {
+                    field("Value Date"; ValueDate2)
+                    {
+                        ApplicationArea = All;
+                        Caption = 'Value Date';
+                        ShowMandatory = true;
+                    }
+
+                    field("Payment Reference"; BeneficiaryReference2)
+                    {
+                        ApplicationArea = All;
+                        Caption = 'Payment Reference';
+                        ShowMandatory = true;
+                    }
+                }
+            }
+        }
+    }
+
     var
+        NoSeries: Codeunit "No. Series";
         DateFormat: Text;
+        ValueDate2: Date;
+        BeneficiaryReference2: Text;
+
+    trigger OnInitXmlPort()
     begin
         IsAccountNoBlank();
         DateFormat := '<Year4><Month,2><Day,2>';
         Header := 'H';
         CurrentDate := Format(Today(), 8, DateFormat);
-        ValueDate := Format(GetPostingDate(), 8, DateFormat);
-        SequenceNumber := '1';
+        ValueDate2 := GetPostingDate();
         Creditor := 'C';
-        CompanyName := 'Sovereign Part';
+        BeneficiaryReference2 := 'Sovereign Part';
         TerminateProcess := 'T';
     end;
 
@@ -200,8 +266,10 @@ xmlport 99001 "Payment Journal Export MOO"
         GenJnlLines: Record "Gen. Journal Line";
     begin
         GenJnlLines.Reset();
-        GenJnlLines.SetFilter("Journal Batch Name", 'PAYMENTS');
-        GenJnlLines.SetFilter("Journal Batch Name", 'DEFAULT');
+        GenJnlLines.SetCurrentKey("Posting Date");
+        GenJnlLines.SetFilter("Journal Template Name", GenJournalLine."Journal Template Name");
+        GenJnlLines.SetFilter("Journal Batch Name", GenJournalLine."Journal Batch Name");
+        GenJnlLines.SetAscending("Posting Date", true);
         GenJnlLines.FindLast();
         exit(GenJnlLines."Posting Date");
     end;
@@ -239,6 +307,14 @@ xmlport 99001 "Payment Journal Export MOO"
         ExportErrorInfo.Title('Export CSV');
         ExportErrorInfo.Message('Nothing to export');
         Error(ExportErrorInfo);
+    end;
+
+    local procedure SetBeneficiaryNameLength(Length: Integer): Integer
+    begin
+        if Length > 14 then
+            exit(14);
+
+        exit(Length);
     end;
 }
 
