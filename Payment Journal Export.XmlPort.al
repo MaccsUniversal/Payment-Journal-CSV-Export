@@ -36,7 +36,6 @@ xmlport 99001 "Payment Journal Export MOO"
     TextEncoding = UTF8;
     UseRequestPage = true;
     TableSeparator = '<NewLine>';
-    FieldSeparator = ',';
     FieldDelimiter = '<None>';
     FileName = 'Payment Export File.csv';
 
@@ -64,6 +63,10 @@ xmlport 99001 "Payment Journal Export MOO"
                         SequenceNumber := NoSeries.GetNextNo('EXPSEQNO');
                     end;
                 }
+
+                textelement(BlankHeaderField1) { }
+                textelement(BlankHeaderField2) { }
+                textelement(BlankHeaderField3) { }
 
             }
             tableelement(SupplierBankCard; "Bank Account")
@@ -111,7 +114,8 @@ xmlport 99001 "Payment Journal Export MOO"
                     end;
                 }
 
-                textelement(BlankField4) { }
+                textelement(BlankDebitField1) { }
+                textelement(BlankDebitField2) { }
 
             }
             tableelement("GenJournalLine"; "Gen. Journal Line")
@@ -188,6 +192,12 @@ xmlport 99001 "Payment Journal Export MOO"
                 XmlName = 'TerminateLine';
 
                 textelement(TerminateProcess) { }
+
+                textelement(BlankTerminateField1) { }
+                textelement(BlankTerminateField2) { }
+                textelement(BlankTerminateField3) { }
+                textelement(BlankTerminateField4) { }
+                textelement(BlankTerminateField5) { }
             }
 
         }
@@ -237,8 +247,8 @@ xmlport 99001 "Payment Journal Export MOO"
         DateFormat := '<Year4><Month,2><Day,2>';
         Header := 'H';
         CurrentDate := Format(Today(), 8, DateFormat);
-        ValueDate2 := GetPostingDate();
         Creditor := 'C';
+        ValueDate2 := GetPostingDate();
         BeneficiaryReference2 := 'Sovereign Part';
         TerminateProcess := 'T';
     end;
@@ -267,8 +277,7 @@ xmlport 99001 "Payment Journal Export MOO"
     begin
         GenJnlLines.Reset();
         GenJnlLines.SetCurrentKey("Posting Date");
-        GenJnlLines.SetFilter("Journal Template Name", GenJournalLine."Journal Template Name");
-        GenJnlLines.SetFilter("Journal Batch Name", GenJournalLine."Journal Batch Name");
+        GenJnlLines.SetFilter("Journal Template Name", 'PAYMENTS');
         GenJnlLines.SetAscending("Posting Date", true);
         GenJnlLines.FindLast();
         exit(GenJnlLines."Posting Date");
@@ -317,4 +326,3 @@ xmlport 99001 "Payment Journal Export MOO"
         exit(Length);
     end;
 }
-
